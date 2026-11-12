@@ -1,11 +1,10 @@
 // server/src/controllers/node.controller.js
-const fsp = require("fs/promises");
-const path = require("path");
 const Node = require("../models/Node");
 const File = require("../models/File");
 const Activity = require("../models/Activity");
 const nodeManager = require("../storage/nodeManager");
-const { NODE_IDS, nodePath } = require("../config/storage");
+const { NODE_IDS } = require("../config/storage");
+const store = require("../storage/store");
 const { chunkName } = require("../storage/chunker");
 const { sha256 } = require("../storage/integrity");
 const { inspectFile, healthOfCopies } = require("../storage/inspector");
@@ -84,12 +83,12 @@ exports.damage = async (req, res) => {
   for (const file of files) {
     for (const c of file.chunks) {
       if (c.nodes[0] !== id) continue;
-      const p = path.join(nodePath(id), chunkName(file._id, c.index));
+      const name = chunkName(file._id, c.index);
       let buf;
-      try { buf = await fsp.readFile(p); } catch { continue; }
+      try { buf = await store.read(id, name); } catch { continue; }
       if (sha256(buf) !== c.hash) continue;          // already damaged
       buf[0] ^= 0xff;                                  // flip one byte
-      await fsp.writeFile(p, buf);
+      await store.write(id, name, buf);
       await Activity.record(req.user.id, file, "DAMAGE", [], { node: id, chunk: c.index });
       return res.json({ node: id, file: file.name, fileId: file._id, chunk: c.index });
     }

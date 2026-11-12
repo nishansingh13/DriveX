@@ -1,8 +1,7 @@
 // server/src/storage/chunker.js
 const fs = require("fs");
-const fsp = require("fs/promises");
-const path = require("path");
-const { CHUNK_SIZE, nodePath } = require("../config/storage");
+const { CHUNK_SIZE } = require("../config/storage");
+const store = require("./store");
 const { chooseNodes } = require("./placement");
 const { sha256 } = require("./integrity");
 
@@ -17,7 +16,7 @@ async function splitAndStore(tempPath, fileId, availableIds) {
     const nodes = chooseNodes(index, availableIds);
     const name = chunkName(fileId, index);
     await Promise.all(
-      nodes.map((id) => fsp.writeFile(path.join(nodePath(id), name), buf))
+      nodes.map((id) => store.write(id, name, buf))
     );
     chunks.push({ index, size: buf.length, hash: sha256(buf), nodes });
     index++;

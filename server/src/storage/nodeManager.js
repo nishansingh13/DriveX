@@ -1,15 +1,15 @@
 // server/src/storage/nodeManager.js
 const fsp = require("fs/promises");
-const path = require("path");
 const Node = require("../models/Node");
-const { NODE_IDS, nodePath, TMP_DIR } = require("../config/storage");
+const store = require("./store");
+const { NODE_IDS, TMP_DIR } = require("../config/storage");
 
 // Run once at start-up: make sure every node folder, the tmp folder
 // and every node record exist. Existing records are left unchanged,
 // so a node that was taken offline stays offline after a restart.
 async function ensureNodes() {
+  await store.init();                                  // create folders (folder backend)
   for (const id of NODE_IDS) {
-    await fsp.mkdir(nodePath(id), { recursive: true });
     await Node.updateOne(
       { nodeId: id },
       { $setOnInsert: { nodeId: id, online: true } },
@@ -19,17 +19,13 @@ async function ensureNodes() {
   await fsp.mkdir(TMP_DIR, { recursive: true });
 }
 
-// A node is available only when it is marked online and its folder exists.
+// A node is available only when it is marked online and it exists in the store
+// (its folder, for the folder backend).
 async function availableIds() {
   const online = await Node.find({ online: true }).lean();
   const ids = [];
   for (const { nodeId } of online) {
-    try {
-      await fsp.access(nodePath(nodeId));
-      ids.push(nodeId);
-    } catch {
-      /* folder missing: treat the node as failed */
-    }
+    if (await store.nodeExists(nodeId)) ids.push(nodeId);   // folder missing: node has failed
   }
   return ids;
 }
@@ -39,12 +35,7 @@ async function availableIds() {
 // Returns how many files were removed.
 async function sweepOrphans(nodeId) {
   const File = require("../models/File");   // required here to avoid a load cycle
-  let names;
-  try {
-    names = await fsp.readdir(nodePath(nodeId));
-  } catch {
-    return 0;                               // folder missing: nothing to sweep
-  }
+  const names = await store.list(nodeId);
   const files = await File.find({ "chunks.nodes": nodeId }, { chunks: 1 }).lean();
   const keep = new Set();
   for (const f of files) {
@@ -54,8 +45,8 @@ async function sweepOrphans(nodeId) {
   }
   let removed = 0;
   for (const name of names) {
-    if (name.endsWith(".chunk") && !keep.has(name)) {
-      await fsp.rm(path.join(nodePath(nodeId), name), { force: true });
+    if (!keep.has(name)) {
+      await store.remove(nodeId, name);
       removed++;
     }
   }

@@ -1,9 +1,7 @@
 // server/src/storage/reassembler.js
 const crypto = require("crypto");
-const fsp = require("fs/promises");
-const path = require("path");
 const { once } = require("events");
-const { nodePath } = require("../config/storage");
+const store = require("./store");
 const { chunkName } = require("./chunker");
 const { sha256 } = require("./integrity");
 
@@ -16,10 +14,10 @@ async function readChunk(fileId, chunk, availableIds, events) {
       continue;
     }
     try {
-      const buf = await fsp.readFile(path.join(nodePath(id), name));
+      const buf = await store.read(id, name);
       if (sha256(buf) === chunk.hash) {
         for (const badId of bad) {                  // self-healing
-          await fsp.writeFile(path.join(nodePath(badId), name), buf);
+          await store.write(badId, name, buf);
           events.push({ type: "REPAIRED", chunk: chunk.index,
                         node: badId, from: id });
         }

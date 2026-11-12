@@ -5,16 +5,15 @@
 //   damaged   the chunk file exists but its hash does not match
 //   missing   there is no chunk file on that node
 //   offline   the node is not available, so the copy can't be checked
-const fsp = require("fs/promises");
-const path = require("path");
-const { nodePath, REPLICATION_FACTOR } = require("../config/storage");
+const { REPLICATION_FACTOR } = require("../config/storage");
+const store = require("./store");
 const { chunkName } = require("./chunker");
 const { sha256 } = require("./integrity");
 
 async function copyState(fileId, chunk, nodeId, availableIds) {
   if (!availableIds.includes(nodeId)) return "offline";
   try {
-    const buf = await fsp.readFile(path.join(nodePath(nodeId), chunkName(fileId, chunk.index)));
+    const buf = await store.read(nodeId, chunkName(fileId, chunk.index));
     return sha256(buf) === chunk.hash ? "ok" : "damaged";
   } catch {
     return "missing";

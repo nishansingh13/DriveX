@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DriveX demo flow</title>
+<style>
+  :root {
+    --n1:#3657D9; --n2:#0E8A8A; --n3:#D9822B; --n4:#B03A7A;
+    --bg:#121826; --panel:#1A2132; --raised:#222B3F; --rule:#2C364C;
+    --text:#E7EBF3; --muted:#8D98AD; --ok:#3FB67A; --warn:#E2A33A; --fault:#F0525F;
+    --hatch:repeating-linear-gradient(135deg,#3A4560 0 2px,#222B3F 2px 5px);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:940px; margin:0 auto; padding:2.5rem 1.5rem 5rem; }
+  h1 { font-size:2rem; line-height:1.15; margin:0 0 .6rem; letter-spacing:-.02em; }
+  h2 { font-size:1.2rem; margin:2.6rem 0 .5rem; letter-spacing:-.01em; }
+  p { margin:.3rem 0; }
+  .lead { color:var(--muted); font-size:1.05rem; max-width:62ch; }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--rule); border-radius:10px; }
+  code { background:var(--raised); border-radius:4px; padding:1px 6px; font-size:.88em; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .fault { color:var(--fault); }
+
+  .prep { padding:1rem 1.2rem; margin-top:1rem; }
+  .prep label { display:flex; gap:.7rem; align-items:flex-start; padding:.3rem 0; cursor:pointer; }
+  .prep input { margin-top:.35rem; accent-color:#E7EBF3; width:16px; height:16px; flex:none; }
+  .prep input:checked + span { color:var(--muted); text-decoration:line-through; text-decoration-color:#3A4560; }
+  .progress { margin-top:.7rem; font-size:.85rem; color:var(--muted); }
+
+  .step { margin-top:.9rem; overflow:hidden; }
+  .step > header { display:flex; align-items:center; gap:.9rem; padding:.8rem 1.1rem; border-bottom:1px solid var(--rule); }
+  .step .n { width:30px; height:30px; border-radius:50%; background:var(--raised); display:flex; align-items:center; justify-content:center; font-weight:700; flex:none; }
+  .step h3 { margin:0; font-size:1.05rem; }
+  .step .tag { margin-left:auto; font-size:.78rem; font-weight:700; padding:2px 9px; border-radius:10px; flex:none; }
+  .tag.good { background:rgba(63,182,122,.15); color:var(--ok); }
+  .tag.edge { background:rgba(226,163,58,.15); color:var(--warn); }
+  .tag.stop { background:rgba(240,82,95,.15); color:var(--fault); }
+  .body { display:grid; grid-template-columns:150px 1fr; gap:.55rem 1.2rem; padding:1rem 1.1rem; }
+  .body dt { color:var(--muted); font-size:.82rem; font-weight:600; padding-top:.15rem; }
+  .body dd { margin:0; }
+  .say { border-left:3px solid var(--rule); padding-left:.8rem; color:#C3CBDA; font-style:italic; }
+  .nodes { display:grid; grid-template-columns:repeat(4,1fr); gap:.4rem; max-width:360px; }
+  .nd { border:1px solid var(--rule); border-top:3px solid var(--c); border-radius:6px; padding:.3rem .4rem; text-align:center; font-size:.78rem; background:var(--raised); }
+  .nd b { color:var(--c); display:block; }
+  .nd.off { background:var(--hatch); border-top-color:#3A4560; color:var(--muted); }
+  .nd.off b { color:var(--muted); }
+  .nd.dmg { box-shadow:inset 0 0 0 2px var(--fault); }
+  .log { margin:0; padding:.6rem .9rem .6rem 2rem; background:var(--bg); border:1px solid var(--rule); border-radius:6px; font-size:.84rem; display:grid; gap:.15rem; }
+  .log li::marker { color:var(--muted); font-size:.85em; }
+  .log li.w { color:var(--warn); } .log li.g { color:var(--ok); font-weight:600; } .log li.f { color:var(--fault); font-weight:600; }
+
+  .alt { padding:1rem 1.2rem; margin-top:.9rem; }
+  .alt h3 { margin:0 0 .3rem; font-size:1rem; }
+  .alt ol { margin:.3rem 0 0; padding-left:1.3rem; }
+  .qa { display:grid; gap:.6rem; margin-top:.8rem; }
+  .qa .panel { padding:.8rem 1.1rem; }
+  .qa b { display:block; margin-bottom:.15rem; }
+  @media (max-width:700px) { .body { grid-template-columns:1fr; } .body dt { padding-top:.6rem; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>The DriveX demo, step by step</h1>
+<p class="lead">A script for presenting the fault-tolerance demo. It follows the <b>Fault-tolerance demo</b> panel in the app exactly: eight steps, one click each, so you set the pace. Takes about two minutes.</p>
+
+<h2>Before you start</h2>
+<div class="panel prep" id="prep">
+  <label><input type="checkbox"><span>MongoDB Atlas is reachable (your IP is in Network Access) and the API shows <code>MongoDB connected</code> when started.</span></label>
+  <label><input type="checkbox"><span>API is running: <code>npm run dev</code> in <code>server/</code>, and <code>http://localhost:5001/api/health</code> lists all four nodes.</span></label>
+  <label><input type="checkbox"><span>App is running: <code>npm run dev</code> in <code>client/</code>, open <code>http://localhost:5173</code>.</span></label>
+  <label><input type="checkbox"><span>Logged in as the <b>admin</b> account. Only the admin sees the demo panel and the node buttons.</span></label>
+  <label><input type="checkbox"><span>A file of <b>at least 3 MB</b> is uploaded (a 6 to 40 MB file looks best: more squares on the map). Smaller files have too few chunks for the demo.</span></label>
+  <label><input type="checkbox"><span>The file you want to use is <b>selected</b> (click its row), otherwise the demo picks your largest file.</span></label>
+  <label><input type="checkbox"><span>All four nodes show <span class="ok">Online</span> and every file says "2 copies of every chunk".</span></label>
+  <p class="progress" id="progress">0 of 7 ready</p>
+</div>
+
+<h2>The eight steps</h2>
+<p class="muted">The first click also makes sure all four nodes are online, so the demo always starts clean. Each step below shows what the four nodes look like afterwards.</p>
+
+<!-- 1 -->
+<section class="panel step">
+  <header><span class="n">1</span><h3>Download normally</h3><span class="tag good">baseline</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Start the demo</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd" style="--c:var(--n2)"><b>node2</b>online</div><div class="nd" style="--c:var(--n3)"><b>node3</b>online</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>Squares light up one after another across the map as each chunk is read from its first copy. The read log fills in.
+      <ol class="log" style="margin-top:.5rem"><li>Token verified. You own this file.</li><li>Found N chunks in metadata.</li><li class="g">Reassembled N chunks in order. File hash matches.</li></ol></dd>
+    <dt>Say</dt><dd class="say">"This is the normal case. DriveX reads each 1 MB chunk, checks its SHA-256 hash against the one stored in MongoDB, and only then sends it. At the end it checks the hash of the whole file."</dd>
+  </dl>
+</section>
+
+<!-- 2 -->
+<section class="panel step">
+  <header><span class="n">2</span><h3>Take node2 offline</h3><span class="tag edge">failure</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 2</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd off" style="--c:var(--n2)"><b>node2</b>offline</div><div class="nd" style="--c:var(--n3)"><b>node3</b>online</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>The node2 column goes dark and hatched. The node light in the top bar goes grey. The files switch to <span class="warn">Running on single copies</span>.</dd>
+    <dt>Say</dt><dd class="say">"One of the four storage nodes has just failed. Every file is now missing one of its two copies of some chunks, but nothing is lost yet."</dd>
+  </dl>
+</section>
+
+<!-- 3 -->
+<section class="panel step">
+  <header><span class="n">3</span><h3>Download with node2 offline</h3><span class="tag good">still works</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 3</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd off" style="--c:var(--n2)"><b>node2</b>offline</div><div class="nd" style="--c:var(--n3)"><b>node3</b>online</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>For each chunk that had a copy on node2, the highlight jumps to the copy on the next node. The log shows the first couple in full, then the rest are summarised.
+      <ol class="log" style="margin-top:.5rem"><li class="w">Chunk 2: node2 is offline.</li><li>Chunk 2: read the copy on node3, hash verified.</li><li class="w">Chunk 6: node2 is offline.</li><li>Chunk 6: read the copy on node3, hash verified.</li><li class="g">Reassembled N chunks in order. File hash matches.</li></ol></dd>
+    <dt>Say</dt><dd class="say">"With a node down, the download still completes. DriveX skips the dead copy and reads the replica, and the file hash still matches, so the user gets exactly the same file."</dd>
+  </dl>
+</section>
+
+<!-- 4 -->
+<section class="panel step">
+  <header><span class="n">4</span><h3>Take node3 offline too</h3><span class="tag edge">limit</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 4</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd off" style="--c:var(--n2)"><b>node2</b>offline</div><div class="nd off" style="--c:var(--n3)"><b>node3</b>offline</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>Two neighbouring columns dark. The health labels turn to <span class="fault">Unavailable</span> for files that have chunks stored on exactly node2 and node3.</dd>
+    <dt>Say</dt><dd class="say">"Now two neighbouring nodes are down. Chunk copies are always placed on neighbouring nodes, so some chunks had both their copies on node2 and node3. With two copies, DriveX is designed to survive one failure at a time, and this is the boundary."</dd>
+  </dl>
+</section>
+
+<!-- 5 -->
+<section class="panel step">
+  <header><span class="n">5</span><h3>Try to download</h3><span class="tag stop">refused</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 5</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd off" style="--c:var(--n2)"><b>node2</b>offline</div><div class="nd off" style="--c:var(--n3)"><b>node3</b>offline</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>The unreachable chunks get a red outline on the map. Nothing is downloaded.
+      <ol class="log" style="margin-top:.5rem"><li class="f">Download refused: Chunk 2 has no copy on an available node.</li></ol></dd>
+    <dt>Say</dt><dd class="say">"DriveX checks every chunk before it sends a single byte, because once a download has started the server can't change its status code. So the user gets a clear 503 error instead of a broken half-file."</dd>
+  </dl>
+</section>
+
+<!-- 6 -->
+<section class="panel step">
+  <header><span class="n">6</span><h3>Bring node2 and node3 back online</h3><span class="tag good">recovered</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 6</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd" style="--c:var(--n2)"><b>node2</b>online</div><div class="nd" style="--c:var(--n3)"><b>node3</b>online</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>All four columns lit again, every file back to <span class="ok">2 copies of every chunk</span>. Bringing a node online also removes leftover chunk files for any file that was deleted while it was down.</dd>
+    <dt>Say</dt><dd class="say">"The data was never lost, only unreachable. As soon as the nodes return, everything is available again, with no restore step."</dd>
+  </dl>
+</section>
+
+<!-- 7 -->
+<section class="panel step">
+  <header><span class="n">7</span><h3>Damage a copy on node3</h3><span class="tag edge">silent corruption</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 7</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd" style="--c:var(--n2)"><b>node2</b>online</div><div class="nd dmg" style="--c:var(--n3)"><b>node3</b>1 damaged</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>A message naming the file and chunk, for example "Damaged chunk 3 of …". One square on node3 turns <span class="fault">red with a "!"</span>. The node is still online and nothing looks wrong to a normal user.</dd>
+    <dt>Say</dt><dd class="say">"Now the harder failure: the node is up, but one byte inside one chunk has changed, the kind of silent corruption a failing disk causes. Nothing has noticed yet."</dd>
+  </dl>
+</section>
+
+<!-- 8 -->
+<section class="panel step">
+  <header><span class="n">8</span><h3>Download again</h3><span class="tag good">self-healing</span></header>
+  <dl class="body">
+    <dt>Click</dt><dd><b>Run step 8</b></dd>
+    <dt>Nodes after</dt><dd><div class="nodes"><div class="nd" style="--c:var(--n1)"><b>node1</b>online</div><div class="nd" style="--c:var(--n2)"><b>node2</b>online</div><div class="nd" style="--c:var(--n3)"><b>node3</b>healed</div><div class="nd" style="--c:var(--n4)"><b>node4</b>online</div></div></dd>
+    <dt>You will see</dt><dd>The highlight lands on the red square, jumps to the other copy, then the red square turns healthy with a green ring.
+      <ol class="log" style="margin-top:.5rem"><li class="w">Chunk 3: hash mismatch on node3, copy is damaged.</li><li>Chunk 3: read the copy on node4, hash verified.</li><li class="g">Chunk 3: repaired the copy on node3 from node4.</li><li class="g">Reassembled N chunks in order. File hash matches.</li></ol></dd>
+    <dt>Say</dt><dd class="say">"The stored hash no longer matches, so DriveX refuses that copy, reads the other one, and uses it to overwrite the damaged one. The user got a correct file, and the system fixed itself without anyone doing anything."</dd>
+  </dl>
+</section>
+
+<p class="muted" style="margin-top:1rem">Finished? The panel shows "Every chunk has two good copies again" and offers <b>Run the demo again</b>. <b>Start over</b> at any point restarts from step 1.</p>
+
+<h2>A second way: do it by hand on disk</h2>
+<p class="muted">Shows the examiners the failures are real, not just buttons.</p>
+<div class="panel alt">
+  <h3>Delete a chunk file</h3>
+  <ol>
+    <li>Open <code>server/storage/node1</code> in Finder or VS Code. Delete one <code>.chunk</code> file.</li>
+    <li>Click <b>Download</b> on that file in the app. The log shows "no copy found on node1" and the copy is restored.</li>
+  </ol>
+</div>
+<div class="panel alt">
+  <h3>Rename a node's folder</h3>
+  <ol>
+    <li>Rename <code>server/storage/node2</code> to <code>node2_x</code>. Within a few seconds the node2 light in the top bar goes grey, even though the database still says it is online.</li>
+    <li>Download a file: it works from the other copies. Rename the folder back to restore it.</li>
+  </ol>
+  <p class="muted" style="margin-top:.4rem">A node counts as available only when it is marked online <b>and</b> its folder exists. That is how both a simulated and a real failure are detected.</p>
+</div>
+
+<h2>Questions to expect</h2>
+<div class="qa">
+  <div class="panel"><b>Are these real servers?</b>No. They are four folders on one machine, which models how distributed storage behaves. It is not protection against losing the whole computer.</div>
+  <div class="panel"><b>Why did step 4 break the download?</b>With two copies, one failure at a time is guaranteed. Two neighbouring nodes share a quarter of the chunks, so those chunks lose both copies. Two opposite nodes (1 and 3, or 2 and 4) would have lost nothing.</div>
+  <div class="panel"><b>How does it know a copy is damaged?</b>Each chunk's SHA-256 hash is stored in MongoDB when the file is uploaded. On every read the chunk is hashed again and compared.</div>
+  <div class="panel"><b>What if both copies of a chunk are damaged?</b>That chunk can't be recovered, because repair needs one good copy. The download is stopped and the failure is recorded.</div>
+  <div class="panel"><b>Why two copies and not three?</b>Each extra copy costs more disk space. Two is the smallest number that survives a failure.</div>
+</div>
+
+</main>
+<script>
+  const boxes = [...document.querySelectorAll("#prep input")];
+  const update = () => { document.getElementById("progress").textContent = boxes.filter(b => b.checked).length + " of " + boxes.length + " ready"; };
+  boxes.forEach(b => b.addEventListener("change", update));
+  update();
+</script>
+</body>
+</html>

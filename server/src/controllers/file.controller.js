@@ -6,7 +6,8 @@ const File = require("../models/File");
 const Node = require("../models/Node");
 const Activity = require("../models/Activity");
 const nodeManager = require("../storage/nodeManager");
-const { CHUNK_SIZE, nodePath } = require("../config/storage");
+const { CHUNK_SIZE } = require("../config/storage");
+const store = require("../storage/store");
 const { splitAndStore, chunkName } = require("../storage/chunker");
 const { hashFile } = require("../storage/integrity");
 const { streamFile } = require("../storage/reassembler");
@@ -117,8 +118,7 @@ exports.remove = async (req, res) => {
   // becomes an orphan and is swept when its node comes back online.
   for (const chunk of file.chunks) {
     for (const id of chunk.nodes) {
-      await fsp.rm(path.join(nodePath(id), chunkName(file._id, chunk.index)),
-                   { force: true }).catch(() => {});
+      await store.remove(id, chunkName(file._id, chunk.index)).catch(() => {});
     }
   }
   await Activity.record(req.user.id, file, "DELETE");

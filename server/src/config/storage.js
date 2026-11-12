@@ -1,6 +1,9 @@
 // server/src/config/storage.js
 const path = require("path");
-const ROOT = path.join(__dirname, "..", "..", "storage");
+// Where the node folders live. Locally this is server/storage. When deployed,
+// set STORAGE_ROOT to the path of the host's persistent volume (for example
+// /data), so the chunk files survive restarts and redeploys.
+const ROOT = process.env.STORAGE_ROOT || path.join(__dirname, "..", "..", "storage");
 
 module.exports = {
   CHUNK_SIZE: 1024 * 1024,          // 1 MB per chunk

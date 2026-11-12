@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How DriveX works</title>
+<style>
+  :root {
+    --n1:#3657D9; --n2:#0E8A8A; --n3:#D9822B; --n4:#B03A7A;
+    --bg:#121826; --panel:#1A2132; --raised:#222B3F; --rule:#2C364C;
+    --text:#E7EBF3; --muted:#8D98AD; --ok:#3FB67A; --warn:#E2A33A; --fault:#F0525F;
+    --hatch:repeating-linear-gradient(135deg,#3A4560 0 2px,#222B3F 2px 5px);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:1080px; margin:0 auto; padding:2.5rem 1.5rem 5rem; }
+  h1 { font-size:2rem; line-height:1.15; margin:0 0 .6rem; letter-spacing:-.02em; }
+  h2 { font-size:1.25rem; margin:3rem 0 .4rem; letter-spacing:-.01em; }
+  h3 { font-size:1rem; margin:0 0 .3rem; }
+  p { margin:.3rem 0; }
+  .lead { color:var(--muted); font-size:1.05rem; max-width:62ch; }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--rule); border-radius:10px; }
+  code { background:var(--raised); border-radius:4px; padding:1px 6px; font-size:.88em; }
+
+  /* the journey of a file */
+  .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:.6rem; margin-top:1.2rem; }
+  .step { padding:.9rem; position:relative; }
+  .step b { display:block; margin-bottom:.25rem; }
+  .step small { color:var(--muted); display:block; }
+  .step:not(:last-child)::after { content:""; position:absolute; right:-.55rem; top:50%; width:.5rem; height:2px; background:var(--muted); }
+  .mini { display:flex; gap:3px; margin:.6rem 0 .1rem; flex-wrap:wrap; }
+  .mini i { width:16px; height:16px; border-radius:3px; display:block; }
+
+  /* simulator */
+  .controls { display:flex; flex-wrap:wrap; gap:.6rem 1rem; align-items:center; padding:.9rem 1rem; margin:1rem 0 .8rem; }
+  .controls label { display:flex; align-items:center; gap:.6rem; color:var(--muted); }
+  input[type=range] { accent-color:#E7EBF3; width:170px; }
+  button { font:inherit; font-weight:600; cursor:pointer; border-radius:7px; padding:.45rem .9rem;
+           border:1px solid var(--rule); background:transparent; color:var(--text); }
+  button:hover:not(:disabled) { background:var(--raised); border-color:var(--muted); }
+  button.primary { background:var(--text); color:var(--bg); border-color:var(--text); }
+  button.primary:hover:not(:disabled) { background:#fff; }
+  button:disabled { opacity:.4; cursor:default; }
+  button:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+  .sim { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:1rem; align-items:start; }
+  .cols { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.6rem; }
+  .col { background:var(--panel); border:1px solid var(--rule); border-top:3px solid var(--c); border-radius:10px; min-height:250px; display:flex; flex-direction:column; }
+  .col.down { background:#161C2A; border-top-color:#3A4560; }
+  .col header { padding:.6rem .7rem; border-bottom:1px solid var(--rule); display:flex; align-items:center; justify-content:space-between; gap:.4rem; flex-wrap:wrap; }
+  .col h3 { color:var(--c); margin:0; }
+  .col.down h3 { color:var(--muted); }
+  .col header button { padding:.2rem .55rem; font-size:.78rem; }
+  .cells { display:flex; flex-wrap:wrap; gap:4px; padding:.7rem; align-content:flex-start; }
+  .count { font-size:.78rem; color:var(--muted); padding:0 .7rem .6rem; margin-top:auto; }
+  .cell { width:30px; height:30px; border-radius:4px; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; color:#fff; transition:transform .12s, opacity .2s; }
+  .cell.first { background:var(--c); }
+  .cell.second { box-shadow:inset 0 0 0 2px var(--c); color:var(--c); }
+  .cell.damaged { background:var(--fault); box-shadow:none; color:#fff; }
+  .cell.off { background:var(--hatch); box-shadow:none; color:var(--muted); }
+  .cell.cur { transform:scale(1.35); outline:2px solid #fff; outline-offset:1px; z-index:1; }
+  .cell.cur.bad { outline-color:var(--fault); }
+  .cell.cur.fixed { outline-color:var(--ok); }
+  .cell.blocked { outline:2px solid var(--fault); outline-offset:1px; }
+  .legend { display:flex; flex-wrap:wrap; gap:1rem; font-size:.8rem; color:var(--muted); margin:.7rem 0 0; }
+  .legend span { display:flex; align-items:center; gap:.4rem; }
+  .legend i { width:14px; height:14px; border-radius:3px; display:inline-block; }
+  .status { padding:1rem; }
+  .status .big { font-size:1.15rem; font-weight:700; margin-bottom:.2rem; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .fault { color:var(--fault); }
+  .log { margin:.8rem 0 0; padding:0 0 0 1.3rem; max-height:250px; overflow-y:auto; font-size:.86rem; display:grid; gap:.25rem; }
+  .log li::marker { color:var(--muted); font-size:.85em; }
+  .log li.warn { color:var(--warn); } .log li.ok { color:var(--ok); font-weight:600; } .log li.fault { color:var(--fault); font-weight:600; }
+  .try { padding:1rem 1.2rem; margin-top:1rem; }
+  .try ol { margin:.4rem 0 0; padding-left:1.3rem; }
+
+  /* what it achieves */
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:.8rem; margin-top:1rem; }
+  .card { padding:1rem 1.1rem; }
+  .card .num { font-size:1.6rem; font-weight:750; letter-spacing:-.02em; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:.78rem; color:var(--muted); font-weight:600; padding:.6rem .8rem; border-bottom:1px solid var(--rule); }
+  td { padding:.55rem .8rem; border-bottom:1px solid var(--rule); font-size:.9rem; }
+  tr:last-child td { border-bottom:0; }
+  .bar { height:8px; border-radius:4px; background:var(--raised); overflow:hidden; min-width:120px; }
+  .bar i { display:block; height:100%; background:var(--fault); }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:.8rem; margin-top:1rem; }
+  .two .panel { padding:1rem 1.2rem; }
+  .two ul { margin:.4rem 0 0; padding-left:1.1rem; }
+  .two li { margin:.25rem 0; }
+  .real { padding:1.1rem 1.3rem; margin-top:1rem; }
+  .real .row { display:flex; flex-wrap:wrap; gap:.4rem 2rem; margin-top:.6rem; }
+  .real .row span { display:flex; flex-direction:column; font-size:.9rem; }
+  .real .row b { color:var(--muted); font-size:.76rem; font-weight:600; }
+  @media (max-width:900px) {
+    .flow { grid-template-columns:1fr 1fr; } .step::after { display:none; }
+    .sim { grid-template-columns:1fr; } .cards, .two { grid-template-columns:1fr; }
+    .cols { grid-template-columns:1fr 1fr; }
+  }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>How DriveX stores a file, and what that buys you</h1>
+<p class="lead">DriveX never keeps a file in one piece in one place. It cuts the file into 1 MB chunks, stores every chunk twice on different storage nodes, and checks a fingerprint of each chunk whenever it reads it back. The result is a file that survives a dead node and notices when its own data has been damaged.</p>
+
+<h2>The journey of one file</h2>
+<p class="muted">This is exactly what happens when you press Upload, in the order it happens.</p>
+<div class="flow">
+  <div class="panel step"><b>1. Arrives whole</b><small>The browser sends the file in a single request. Multer saves it to a temporary file.</small></div>
+  <div class="panel step"><b>2. Cut into chunks</b><small>The server reads the temp file 1 MB at a time. The last chunk holds whatever is left.</small>
+    <div class="mini"><i style="background:#8D98AD"></i><i style="background:#8D98AD"></i><i style="background:#8D98AD"></i><i style="background:#8D98AD;width:8px"></i></div></div>
+  <div class="panel step"><b>3. Fingerprinted</b><small>Each chunk gets a SHA-256 hash. Think of it as a checksum that changes if even one byte changes.</small></div>
+  <div class="panel step"><b>4. Stored twice</b><small>Chunk <code>i</code> goes to node <code>(i mod 4)+1</code> and the next node: always two different nodes.</small></div>
+  <div class="panel step"><b>5. Recorded</b><small>MongoDB keeps the map: each chunk's number, size, hash and its two nodes. The temp file is deleted.</small></div>
+</div>
+<p class="muted" style="margin-top:.8rem">Files live as plain <code>.chunk</code> files in <code>server/storage/node1…node4</code>. Everything <em>about</em> the files (who owns them, what the chunks are, where they live) lives in MongoDB. The data and the map are deliberately kept apart.</p>
+
+<h2>Try it: break things and watch</h2>
+<p class="muted">This is a working copy of the real rules: the same placement, the same fallback to the second copy, and the same repair. Nothing here touches your actual files.</p>
+
+<div class="panel controls">
+  <label>File size <input type="range" id="size" min="1" max="16" step="0.5" value="6"> <b id="sizeLabel">6 MB</b></label>
+  <button class="primary" id="store">Store the file</button>
+  <button id="damage">Damage a random copy</button>
+  <button id="download">Download</button>
+  <button id="reset">Reset</button>
+</div>
+
+<div class="sim">
+  <div>
+    <div class="cols" id="cols"></div>
+    <div class="legend">
+      <span><i style="background:#8D98AD"></i>first copy</span>
+      <span><i style="box-shadow:inset 0 0 0 2px #8D98AD"></i>second copy</span>
+      <span><i style="background:var(--fault)"></i>damaged</span>
+      <span><i style="background:var(--hatch)"></i>on an offline node</span>
+      <span>number = chunk</span>
+    </div>
+  </div>
+  <div class="panel status">
+    <div class="big" id="verdict">Store a file to begin</div>
+    <p class="muted" id="verdictSub">Then take nodes offline or damage copies.</p>
+    <ol class="log" id="log"></ol>
+  </div>
+</div>
+
+<div class="panel try">
+  <h3>Three things to try</h3>
+  <ol>
+    <li><b>One node dies.</b> Store a file, press <i>Take offline</i> on node2, then <i>Download</i>. The file still arrives; every chunk with a copy on node2 is read from its other copy.</li>
+    <li><b>Data quietly goes bad.</b> Press <i>Damage a random copy</i> a few times, then <i>Download</i>. The hash does not match, DriveX reads the other copy and rewrites the bad one. Download again: clean.</li>
+    <li><b>Two nodes die.</b> Take node2 and node3 offline together, then download: it is refused up front with a clear error instead of sending a broken file. Now try node1 and node3 instead.</li>
+  </ol>
+</div>
+
+<h2>What this achieves</h2>
+<div class="cards">
+  <div class="panel card"><div class="num ok">1 node</div><p>can be lost at any time and every file still downloads, because each chunk has a second copy somewhere else.</p></div>
+  <div class="panel card"><div class="num ok">100%</div><p>of damaged copies are caught on read: the stored hash will not match, so bad data is never handed to the user as if it were good.</p></div>
+  <div class="panel card"><div class="num ok">0 manual steps</div><p>to repair. The bad copy is overwritten from the good one during a normal download. That is the self-healing.</p></div>
+</div>
+
+<h3 style="margin-top:2rem">What if two nodes fail at once?</h3>
+<p class="muted">It depends which two. Chunk copies always sit on <em>neighbouring</em> nodes (1+2, 2+3, 3+4, 4+1), so a pair of neighbours shares a quarter of the chunks, while opposite nodes share none. Table for a file of <b id="nChunks">6</b> chunks (change the slider above):</p>
+<div class="panel" style="margin-top:.6rem; overflow:hidden">
+  <table>
+    <thead><tr><th>Nodes lost</th><th>Chunks with no copy left</th><th></th><th>File</th></tr></thead>
+    <tbody id="failTable"></tbody>
+  </table>
+</div>
+<p class="muted" style="margin-top:.6rem">This is the limit the report states in §4.1.3: with two copies, DriveX is designed to survive <b>one</b> node failure at a time. Opposite pairs surviving is a bonus of the placement rule, not a guarantee to rely on.</p>
+
+<h2>What it does not do</h2>
+<div class="two">
+  <div class="panel"><h3>Honest limits</h3>
+    <ul>
+      <li>The four "nodes" are folders on one machine. If the disk or the computer dies, everything goes. This shows how distributed storage works; it is not real disaster protection.</li>
+      <li>Two copies cost <b>2× the disk space</b>. That is the price of surviving a failure.</li>
+      <li>An upload is one request, so a dropped connection means starting over. Chunking happens on the server.</li>
+      <li>If both copies of one chunk are damaged, that file cannot be recovered. Repair needs one good copy to copy from.</li>
+    </ul></div>
+  <div class="panel"><h3>Why it is still worth showing</h3>
+    <ul>
+      <li>It is the same idea as Google File System and HDFS (fixed-size blocks, several replicas, checksums), at a size you can see.</li>
+      <li>Every behaviour can be demonstrated live: kill a node, corrupt a byte, watch it recover.</li>
+      <li>Security sits on top: bcrypt passwords, JWT sessions, and every file query filtered by owner.</li>
+    </ul></div>
+</div>
+
+<h2>A real example from your system</h2>
+<div class="panel real">
+  <p>The file you uploaded, <b>PROJECT_BRIEF.md</b>, is 8,938 bytes: under 1 MB, so it became <b>one chunk</b>.</p>
+  <div class="row">
+    <span><b>Chunk number</b>0 (shown as chunk 1)</span>
+    <span><b>First copy</b>node1 (solid square)</span>
+    <span><b>Second copy</b>node2 (outlined square)</span>
+    <span><b>File on disk</b><code>6af553911899771f879dd7f1_0.chunk</code></span>
+  </div>
+  <p class="muted" style="margin-top:.8rem">Find it in <code>server/storage/node1</code> and <code>server/storage/node2</code>. Delete one, download the file, and the missing copy comes back.</p>
+</div>
+
+</main>
+
+<script>
+const NODES = ["node1","node2","node3","node4"];
+const COLORS = ["#3657D9","#0E8A8A","#D9822B","#B03A7A"];
+const $ = (id) => document.getElementById(id);
+
+let online = [true,true,true,true];
+let file = null;          // { sizeMB, chunks: [{ i, copies: [{ node, state }] }] }
+let busy = false;
+let cur = null;           // { i, node, kind }
+let blocked = new Set();
+
+// The real placement rule (server/src/storage/placement.js): start at node (i mod 4),
+// walk forward, take the first two available nodes.
+function chooseNodes(i, avail) {
+  const out = [];
+  for (let k = 0; k < 4 && out.length < 2; k++) {
+    const n = (i + k) % 4;
+    if (avail[n]) out.push(n);
+  }
+  return out;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const addLog = (text, tone = "") => {
+  const li = document.createElement("li");
+  li.textContent = text; if (tone) li.className = tone;
+  $("log").appendChild(li); li.scrollIntoView({ block: "nearest" });
+};
+const clearLog = () => { $("log").innerHTML = ""; };
+
+function render() {
+  $("cols").innerHTML = "";
+  NODES.forEach((name, n) => {
+    const col = document.createElement("section");
+    col.className = "col" + (online[n] ? "" : " down");
+    col.style.setProperty("--c", COLORS[n]);
+    col.innerHTML = `<header><h3>${name}</h3><button data-n="${n}" ${busy ? "disabled" : ""}>${online[n] ? "Take offline" : "Bring online"}</button></header><div class="cells"></div><div class="count"></div>`;
+    const cells = col.querySelector(".cells");
+    let count = 0;
+    if (file) {
+      for (const ch of file.chunks) {
+        ch.copies.forEach((cp, k) => {
+          if (cp.node !== n) return;
+          count++;
+          const d = document.createElement("div");
+          let cls = "cell " + (k === 0 ? "first" : "second");
+          if (!online[n]) cls += " off"; else if (cp.state === "damaged") cls += " damaged";
+          if (cur && cur.i === ch.i && cur.node === n) cls += " cur " + (cur.kind || "");
+          if (blocked.has(ch.i)) cls += " blocked";
+          d.className = cls; d.textContent = ch.i + 1;
+          d.title = `chunk ${ch.i + 1}, ${k === 0 ? "first" : "second"} copy` + (!online[n] ? ", node offline" : cp.state === "damaged" ? ", damaged" : "");
+          cells.appendChild(d);
+        });
+      }
+    }
+    col.querySelector(".count").textContent = file ? `${count} chunk ${count === 1 ? "copy" : "copies"}` : "empty";
+    $("cols").appendChild(col);
+  });
+  document.querySelectorAll(".col header button").forEach((b) => b.onclick = () => toggleNode(+b.dataset.n));
+  $("store").disabled = busy; $("damage").disabled = busy || !file; $("download").disabled = busy || !file; $("reset").disabled = busy;
+  verdict();
+}
+
+// Same idea as inspector.healthOfCopies: count good, reachable copies per chunk.
+function verdict() {
+  if (!file) { $("verdict").className = "big"; $("verdict").textContent = "Store a file to begin"; $("verdictSub").textContent = "Then take nodes offline or damage copies."; return; }
+  let single = 0, none = 0;
+  for (const ch of file.chunks) {
+    const good = ch.copies.filter((c) => online[c.node] && c.state === "ok").length;
+    if (good === 0) none++; else if (good === 1) single++;
+  }
+  const v = $("verdict");
+  if (none) { v.className = "big fault"; v.textContent = "File unavailable"; $("verdictSub").textContent = `${none} of ${file.chunks.length} chunks have no good copy on an online node, so a download is refused.`; }
+  else if (single) { v.className = "big warn"; v.textContent = "File readable, running on single copies"; $("verdictSub").textContent = `${single} of ${file.chunks.length} chunks have only one good copy left. One more failure could lose them.`; }
+  else { v.className = "big ok"; v.textContent = "Every chunk has two good copies"; $("verdictSub").textContent = "The file is fully protected."; }
+}
+
+function store() {
+  const mb = parseFloat($("size").value);
+  const n = Math.ceil(mb);
+  clearLog(); blocked = new Set(); cur = null;
+  if (!online.some(Boolean)) { file = null; addLog("Upload refused: no storage node is available (503).", "fault"); render(); return; }
+  file = { sizeMB: mb, chunks: [] };
+  for (let i = 0; i < n; i++) file.chunks.push({ i, copies: chooseNodes(i, online).map((node) => ({ node, state: "ok" })) });
+  const single = file.chunks.filter((c) => c.copies.length < 2).length;
+  addLog(`Split ${mb} MB into ${n} chunk${n === 1 ? "" : "s"} and stored them.`, "ok");
+  if (single) addLog(`${single} chunk${single === 1 ? " has" : "s have"} only one copy because fewer than two nodes were online.`, "warn");
+  render();
+}
+
+function toggleNode(n) {
+  online[n] = !online[n]; blocked = new Set(); cur = null;
+  addLog(`${NODES[n]} ${online[n] ? "is back online." : "taken offline."}`, online[n] ? "" : "warn");
+  render();
+}
+
+function damage() {
+  const targets = [];
+  for (const ch of file.chunks) for (const cp of ch.copies) if (online[cp.node] && cp.state === "ok") targets.push([ch, cp]);
+  if (!targets.length) { addLog("No healthy copy on an online node to damage.", "warn"); return; }
+  const [ch, cp] = targets[Math.floor(Math.random() * targets.length)];
+  cp.state = "damaged";
+  addLog(`One byte flipped in chunk ${ch.i + 1} on ${NODES[cp.node]}.`, "warn");
+  render();
+}
+
+// Mirrors the real download: pre-check, then read each chunk in order, trying copy 1 then copy 2.
+async function download() {
+  busy = true; clearLog(); blocked = new Set(); render();
+  addLog("Token verified. You own this file.");
+  addLog(`Found ${file.chunks.length} chunks in metadata.`);
+  const blockedChunks = file.chunks.filter((c) => !c.copies.some((x) => online[x.node]));
+  if (blockedChunks.length) {
+    blocked = new Set(blockedChunks.map((c) => c.i));
+    addLog(`Refused (503): chunk ${blockedChunks[0].i + 1} has no copy on an available node.`, "fault");
+    addLog("Nothing was sent, so there is no broken partial file.", "fault");
+    busy = false; render(); await sleep(1800); blocked = new Set(); render(); return;
+  }
+  let clean = 0;
+  for (const ch of file.chunks) {
+    const bad = []; let served = null; let noisy = false;
+    for (const cp of ch.copies) {
+      cur = { i: ch.i, node: cp.node, kind: "" };
+      if (!online[cp.node]) { noisy = true; cur.kind = "bad"; addLog(`Chunk ${ch.i + 1}: ${NODES[cp.node]} is offline.`, "warn"); render(); await sleep(520); continue; }
+      if (cp.state === "damaged") { noisy = true; cur.kind = "bad"; addLog(`Chunk ${ch.i + 1}: hash mismatch on ${NODES[cp.node]}, copy is damaged.`, "warn"); bad.push(cp); render(); await sleep(620); continue; }
+      served = cp; break;
+    }
+    if (!served) { addLog(`Download aborted: chunk ${ch.i + 1} has no readable copy.`, "fault"); cur = null; busy = false; render(); return; }
+    cur = { i: ch.i, node: served.node, kind: "" };
+    if (noisy) addLog(`Chunk ${ch.i + 1}: read the copy on ${NODES[served.node]}, hash verified.`);
+    else clean++;
+    render(); await sleep(noisy ? 420 : 110);
+    for (const b of bad) {
+      b.state = "ok"; cur = { i: ch.i, node: b.node, kind: "fixed" };
+      addLog(`Chunk ${ch.i + 1}: repaired the copy on ${NODES[b.node]} from ${NODES[served.node]}.`, "ok");
+      render(); await sleep(700);
+    }
+  }
+  cur = null;
+  addLog(`${clean} of ${file.chunks.length} chunks read from their first copy, hashes verified.`);
+  addLog(`Reassembled ${file.chunks.length} chunks in order. File hash matches.`, "ok");
+  busy = false; render();
+}
+
+// Failure table: which chunks lose both copies for each set of lost nodes (all nodes online at upload).
+function failTable() {
+  const n = Math.ceil(parseFloat($("size").value));
+  $("nChunks").textContent = n;
+  const chunks = Array.from({ length: n }, (_, i) => chooseNodes(i, [true,true,true,true]));
+  const sets = [[0],[1],[2],[3],[0,1],[1,2],[2,3],[3,0],[0,2],[1,3]];
+  $("failTable").innerHTML = "";
+  for (const s of sets) {
+    const lost = chunks.filter((c) => c.every((x) => s.includes(x))).length;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${s.map((x) => NODES[x]).join(" + ")}</td><td>${lost} of ${n}</td><td><div class="bar"><i style="width:${n ? (lost / n) * 100 : 0}%"></i></div></td><td class="${lost ? "fault" : "ok"}">${lost ? "cannot be downloaded" : "safe"}</td>`;
+    $("failTable").appendChild(tr);
+  }
+}
+
+$("size").oninput = () => { $("sizeLabel").textContent = $("size").value + " MB"; failTable(); };
+$("store").onclick = store;
+$("damage").onclick = damage;
+$("download").onclick = download;
+$("reset").onclick = () => { online = [true,true,true,true]; file = null; cur = null; blocked = new Set(); clearLog(); render(); };
+failTable(); render();
+</script>
+</body>
+</html>
