@@ -1,0 +1,8 @@
+node_modules/
+.env
+dist/
+.playwright-mcp/
+
+# storage nodes and temporary uploads (chunk files are data, not source)
+server/storage/node*/
+server/storage/tmp/*
