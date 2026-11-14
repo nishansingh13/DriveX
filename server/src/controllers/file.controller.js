@@ -1,16 +1,11 @@
 // server/src/controllers/file.controller.js
-const fsp = require("fs/promises");
-const path = require("path");
-const mongoose = require("mongoose");
 const File = require("../models/File");
 const Node = require("../models/Node");
 const Activity = require("../models/Activity");
 const nodeManager = require("../storage/nodeManager");
-const { CHUNK_SIZE } = require("../config/storage");
 const store = require("../storage/store");
-const { splitAndStore, chunkName } = require("../storage/chunker");
-const { hashFile } = require("../storage/integrity");
-const { streamFile } = require("../storage/reassembler");
+const { chunkName } = require("../storage/chunker");
+const { storeUploadedFile, sendStoredFile } = require("../services/fileService");
 const { inspectFile, healthOfCopies } = require("../storage/inspector");
 const { NODE_IDS } = require("../config/storage");
 
@@ -48,28 +43,13 @@ exports.map = async (req, res) => {
 
 exports.upload = async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received" });
-  const fileId = new mongoose.Types.ObjectId();
   try {
-    const available = await nodeManager.availableIds();
-    const chunks = await splitAndStore(req.file.path, fileId, available);
-    const file = await File.create({
-      _id: fileId,
-      owner: req.user.id,
-      name: req.file.originalname,
-      size: req.file.size,
-      mimeType: req.file.mimetype,
-      chunkSize: CHUNK_SIZE,
-      fileHash: await hashFile(req.file.path),
-      chunks,
-    });
-    await Activity.record(req.user.id, file, "UPLOAD");
+    const { file, available } = await storeUploadedFile(req.file, req.user.id);
     res.status(201).json({ ...file.toSummary(available), chunks: file.chunks });
   } catch (err) {
     if (err.message === "NO_NODES_AVAILABLE")
       return res.status(503).json({ error: "No storage node is available" });
     throw err;
-  } finally {
-    await fsp.rm(req.file.path, { force: true });   // remove temp file
   }
 };
 
@@ -85,30 +65,7 @@ exports.details = async (req, res) => {
 exports.download = async (req, res) => {
   const file = await findOwn(req);
   if (!file) return res.status(404).json({ error: "File not found" });
-
-  const available = await nodeManager.availableIds();
-  const blocked = file.chunks.find(
-    (c) => !c.nodes.some((id) => available.includes(id))
-  );
-  if (blocked) {
-    return res.status(503).json({
-      error: `Chunk ${blocked.index + 1} has no copy on an available node`,   // numbered from 1, like the UI
-    });
-  }
-
-  res.setHeader("Content-Type", file.mimeType);
-  res.setHeader("Content-Length", file.size);
-  res.setHeader("Content-Disposition",
-    `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`);
-
-  const events = [];
-  try {
-    await streamFile(file, available, res, events);
-  } catch (err) {
-    res.destroy(err);              // client sees an interrupted download
-  } finally {
-    await Activity.record(req.user.id, file, "DOWNLOAD", events);
-  }
+  await sendStoredFile(file, req.user.id, res);
 };
 
 exports.remove = async (req, res) => {
