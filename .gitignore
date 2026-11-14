@@ -6,3 +6,7 @@ dist/
 # storage nodes and temporary uploads (chunk files are data, not source)
 server/storage/node*/
 server/storage/tmp/*
+
+# deployment secrets for pasting into a host
+server/.env.render
+.shots/

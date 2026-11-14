@@ -17,7 +17,7 @@ const activitySchema = new mongoose.Schema({
   node: { type: String, enum: NODE_IDS },  // node actions and DAMAGE
   chunk: Number,                         // DAMAGE: which chunk was damaged
   action: { type: String, required: true,
-            enum: ["UPLOAD", "DOWNLOAD", "DELETE", "NODE_OFFLINE", "NODE_ONLINE", "DAMAGE"] },
+            enum: ["UPLOAD", "DOWNLOAD", "DELETE", "NODE_OFFLINE", "NODE_ONLINE", "DAMAGE", "TRANSFER_IN", "TRANSFER_OUT"] },
   events: [eventSchema],
 }, { timestamps: { createdAt: true, updatedAt: false } });
 

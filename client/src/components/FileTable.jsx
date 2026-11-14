@@ -5,7 +5,7 @@ import { formatShortDate, formatSize, HEALTH } from "../nodes";
 
 const extension = (name) => (name.includes(".") ? name.split(".").pop().slice(0, 4).toLowerCase() : "file");
 
-export default function FileTable({ files, selectedId, busy, onSelect, onOpen, onDownload, onDelete }) {
+export default function FileTable({ files, selectedId, busy, onSelect, onOpen, onDownload, onSendToPhone, onDelete }) {
   if (files.length === 0) {
     return (
       <div className="panel empty">
@@ -46,6 +46,10 @@ export default function FileTable({ files, selectedId, busy, onSelect, onOpen, o
                 <button className="btn secondary small" disabled={busy}
                         onClick={(e) => { e.stopPropagation(); onDownload(f.id); }}>
                   Download
+                </button>
+                <button className="btn secondary small" disabled={busy}
+                        onClick={(e) => { e.stopPropagation(); onSendToPhone(f); }}>
+                  Send to phone
                 </button>
                 <button className="btn danger small" disabled={busy}
                         onClick={(e) => { e.stopPropagation(); onDelete(f); }}>

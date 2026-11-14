@@ -14,6 +14,7 @@ import UploadPanel from "../components/UploadPanel";
 import FileDetailsModal from "../components/FileDetailsModal";
 import ReadLog from "../components/ReadLog";
 import DemoPanel from "../components/DemoPanel";
+import TransferDialog from "../components/TransferDialog";
 
 export default function Files() {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function Files() {
   const [selectedId, setSelectedId] = useState(null);
   const [showUpload, setShowUpload] = useState(false);
   const [openId, setOpenId] = useState(null);
+  const [transfer, setTransfer] = useState(null);   // null, or { mode: "receive" } / { mode: "send", file }
   const [newFileId, setNewFileId] = useState(null);
   const [replay, setReplay] = useState(null);       // what the map highlights during a download
   const [log, setLog] = useState(null);             // the read log
@@ -108,9 +110,14 @@ export default function Files() {
           <h1>My files</h1>
           <p className="muted">{plural(map.files.length, "file")}, {formatSize(total)} in total</p>
         </div>
-        <button className="btn" onClick={() => setShowUpload((s) => !s)}>
-          {showUpload ? "Close upload" : "Upload file"}
-        </button>
+        <div className="head-actions">
+          <button className="btn secondary" onClick={() => setTransfer({ mode: "receive" })}>
+            Receive from phone
+          </button>
+          <button className="btn" onClick={() => setShowUpload((s) => !s)}>
+            {showUpload ? "Close upload" : "Upload file"}
+          </button>
+        </div>
       </div>
 
       {showUpload && <UploadPanel onUploaded={uploaded} />}
@@ -141,7 +148,7 @@ export default function Files() {
           </section>
           <FileTable
             files={map.files} selectedId={selectedId} busy={busy}
-            onSelect={(id) => !busy && setSelectedId(id)} onOpen={setOpenId}
+            onSelect={(id) => !busy && setSelectedId(id)} onOpen={setOpenId} onSendToPhone={(file) => setTransfer({ mode: "send", file })}
             onDownload={(id) => guarded(() => replayDownload(id, true))} onDelete={remove}
           />
         </div>
@@ -154,6 +161,13 @@ export default function Files() {
         </aside>
       </div>
 
+      {transfer && (
+        <TransferDialog
+          mode={transfer.mode} file={transfer.file}
+          onClose={() => setTransfer(null)}
+          onReceived={(f) => { uploaded(f.id); }}
+        />
+      )}
       {openId && <FileDetailsModal fileId={openId} onClose={() => setOpenId(null)} />}
     </>
   );
